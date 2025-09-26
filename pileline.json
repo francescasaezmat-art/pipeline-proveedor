@@ -1,0 +1,58 @@
+{
+  "name": "Valida CUIT AFIP",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "proveedor-nuevo"
+    },
+    {
+      "parameters": {
+        "url": "=https://www.afip.gob.ar/ws/ws_sr_padron_a13/service.asmx",
+        "authentication": "genericAuth",
+        "genericAuthType": "httpHeader",
+        "headers": { "Content-Type": "application/soap+xml; charset=utf-8" },
+        "body": "=<soap12:Envelope xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xmlns:xsd='http://www.w3.org/2001/XMLSchema' xmlns:soap12='http://www.w3.org/2003/05/soap-envelope'><soap12:Body><getPersona xmlns='http://a13.padron.ws.sua.afip.gov.ar/'><token>{{$node['AFIP-Auth'].json.token}}</token><sign>{{$node['AFIP-Auth'].json.sign}}</sign><cuit>{{$json.body.cuit}}</cuit></getPersona></soap12:Body></soap12:Envelope>"
+      },
+      "name": "HTTP-Request-AFIP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [{ "value1": "={{$node['HTTP-Request-AFIP'].json['soap:Envelope']['soap:Body']['getPersonaResponse']['getPersonaResult']['persona']['estadoClave']}}", "operation": "equals", "value2": "ACTIVO" }]
+        }
+      },
+      "name": "IF-Activo",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "table": "proveedor",
+        "updateKey": "cuit",
+        "columns": "estado",
+        "valueMapping": { "estado": "aprobado" }
+      },
+      "name": "Update-Supabase",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [850, 250],
+      "credentials": { "supabaseApi": { "id": "supa-creds", "name": "Supabase account" } }
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "HTTP-Request-AFIP", "type": "main", "index": 0 }]] },
+    "HTTP-Request-AFIP": { "main": [[{ "node": "IF-Activo", "type": "main", "index": 0 }]] },
+    "IF-Activo": { "main": [[{ "node": "Update-Supabase", "type": "main", "index": 0 }]] }
+  },
+  "active": true,
+  "settings": { "executionOrder": "v1" }
+}
